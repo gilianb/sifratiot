@@ -1,0 +1,87 @@
+%% ======================= Parameters ===========================
+N = 4000;
+not_det = 0;
+%% ====================== Prepare New Test Set ======================
+load('mnist.mat');
+
+num_images = test.count;
+new_test_images = shiftdim(test.images, 2);
+A_new_test = reshape(new_test_images,num_images,28*28);
+A_new_test = [A_new_test, ones(num_images,1)];
+true_labels = test.labels;
+
+%% ============================ Predict ==============================
+UNCLASSIFIED = -1;
+pred = UNCLASSIFIED * ones(num_images, 1);
+
+% TODO: compute your predictions
+result = zeros(10,num_images);
+
+for n=0:9
+    imagesPern = training.images(:,:,training.labels == n);
+    imagesNotn = training.images(:,:,training.labels ~= n);
+    %% ======================= Create A, b ============================
+    A_all_before = zeros(2*N,28^2);
+    b_all = zeros(2*N,1);
+    for i=1:N
+        A_all_before(2*i-1,:) = reshape(imagesPern(:,:,i),1,28*28);
+        A_all_before(2*i,:)   = reshape(imagesNotn(:,:,i),1,28*28);
+        b_all(2*i-1)   = +1;
+        b_all(2*i)     = -1; 
+    end
+    A_all = [A_all_before, ones(2*N,1)];
+    
+    %% ========================= Solve LS ==============================    
+    x = pinv(A_all)*b_all; 
+   
+    %% ========================= Calculate Predication ==============================
+    for m=1:num_images
+        result(n+1,m) = A_new_test(m,:)*x;
+    end
+end
+
+for j=1:num_images
+    [~,pred(j)] = max(result(:,j));
+end
+
+decrease = ones(num_images,1);
+pred = pred - decrease;
+
+%% =========================== Evaluate ==============================
+
+for j=1:num_images
+    counter = 0;
+    for i=1:10
+        if(result(i,j) > 0)
+            counter = counter + 1;
+        end
+    end
+    if(counter > 1)
+        not_det = not_det + 1;
+        %disp("could'nt decide: ");
+        %disp(result(:,j)');
+    end
+    
+end
+
+disp(["number of digits that could'nt decide: ",not_det]);
+
+
+acc = mean(pred == true_labels)*100;
+disp(['Accuracy=',num2str(acc),'% (',num2str((1-acc/100)*num_images),' wrong examples)']);
+%% ================== Show the Problematic Images ====================
+    
+error = find(pred~=true_labels);
+disp(length(error))
+for k=1:1:length(error)
+    figure(2);
+    imagesc(reshape(new_test_images(error(k),1:28^2),[28,28]));
+    colormap(gray(256))
+    axis image; axis off; 
+    title(['problematic prediction of digit ', num2str(true_labels(error(k))), "predicted as: ",num2str(pred(error(k))),' :',num2str(A_new_test(error(k),:)*x)]); 
+    pause;  
+end
+
+
+
+
